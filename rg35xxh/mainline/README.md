@@ -16,7 +16,7 @@ MBR disk id `4441524b`; root and fstab use `PARTUUID`.
 ```
 podman build -t localhost/guestfs:44 rg35xxh/guestfs   # first time only
 rg35xxh/mainline/build.sh ROCKNIX-H700.aarch64-20261101-DDR4.img.gz MustardOS_RG35XX-H_2601.1_FUNKY_JACARANDA-bc38efa0.img.gz dArkOS_RG353v_trixie_08282026.img
-pkexec sh rg35xxh/mainline/write-card.sh                # card must be /dev/sdd, 64 GB
+pkexec sh rg35xxh/mainline/write-card.sh [work dir]     # card must be /dev/sdd, 64 GB
 ```
 
 `DTB=sun50i-h700-anbernic-rg35xx-h-rev6-panel.dtb` selects the rev6 panel. On a built card, copy it over `dtb.img` on p1.

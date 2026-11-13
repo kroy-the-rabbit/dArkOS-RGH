@@ -1,10 +1,10 @@
 #!/bin/sh
-# Write the dArkOS mainline card. Run as root: pkexec sh rg35xxh/mainline/write-card.sh
+# Write the dArkOS mainline card. Run as root: pkexec sh rg35xxh/mainline/write-card.sh [work dir]
 # Writes: MBR, ROCKNIX u-boot and FAT boot partition (p1), 12 GiB dArkOS ext4
 # root (p2), fresh exFAT EASYROMS (p3).
 set -e
 D=/dev/sdd
-H=${W:-$(dirname "$(readlink -f "$0")")/work}
+H=${1:-$(dirname "$(readlink -f "$0")")/work}
 SECTORS=123473920
 [ "$(blockdev --getsz $D)" = "$SECTORS" ] || { echo "$D is not the 64 GB card ($(blockdev --getsz $D) sectors); stopping"; exit 1; }
 if grep -q "^$D" /proc/mounts; then echo "$D has mounted partitions; unmount first"; exit 1; fi
