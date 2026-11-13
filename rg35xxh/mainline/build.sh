@@ -126,6 +126,8 @@ tar -C ov --owner=0 --group=0 --numeric-owner -cf overlay.tar .
 		done
 	done
 	echo "chown 1000 1000 /home/ark"
+	# tar-in resets these existing dirs to root
+	for d in .config .config/retroarch .config/retroarch32; do echo "chown 1000 1000 /home/ark/$d"; done
 	echo "chmod 0700 /home/ark"
 	echo "chown 1000 1000 /etc/emulationstation/es_input.cfg"
 	echo 'debug sh "chown -R 1000:1000 /sysroot/home/ark/.config/retroarch/autoconfig /sysroot/home/ark/.config/retroarch32/autoconfig"'
