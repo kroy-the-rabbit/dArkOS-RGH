@@ -119,6 +119,10 @@ mcopy -i boot.img rk/KERNEL ::/KERNEL
 mcopy -i boot.img "rk/device_trees/$DTB" ::/dtb.img
 mcopy -s -i boot.img rk/device_trees ::/
 mcopy -s -i boot.img "$R/boot/extlinux" ::/
+# ROCKNIX's built-in initramfs has no /root, where the kernel mounts root=;
+# u-boot loads this cpio as a second initramfs to add it.
+mkdir -p rootdir/root && (cd rootdir && echo root | cpio -o -H newc -R 0:0 --quiet) >rootdir.cpio
+mcopy -i boot.img rootdir.cpio ::/rootdir.cpio
 
 echo "== card head"
 rm -f card.img && truncate -s $((SECTORS * 512)) card.img

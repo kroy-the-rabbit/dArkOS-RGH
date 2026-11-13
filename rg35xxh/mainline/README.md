@@ -27,6 +27,7 @@ pkexec sh rg35xxh/mainline/write-card.sh [work dir]     # card must be /dev/sdd,
 |---|---|
 | u-boot | extlinux on the bootable FAT partition |
 | Kernel | `rdinit=/nonexistent` skips the built-in ROCKNIX initramfs; `root=PARTUUID=4441524b-02` |
+| `rootdir.cpio` | Second initramfs with an empty `/root`, the mount point for `root=`; missing from the ROCKNIX one |
 | `/init` | adbd on the USB gadget (serial `darkos-h700`), then systemd. Log: `/var/log/h700-init.log` |
 
 ## Build changes to the dArkOS root
