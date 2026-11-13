@@ -116,6 +116,8 @@ tar -C ov --owner=0 --group=0 --numeric-owner -cf overlay.tar .
 		echo "mkdir-p /opt/darkos-sdl2/$a"
 		echo "mv $L/libSDL2-2.0.so.0.3200.10 /opt/darkos-sdl2/$a/libSDL2-2.0.so.0.3200.10"
 	done
+	# no panel colour properties on sun4i-drm: hides the EmulationStation panel menu
+	echo "mv /usr/local/bin/panel_set.sh /usr/local/bin/panel_set.sh.rk3566"
 	echo "tar-in /w/overlay.tar /"
 	for a in aarch64-linux-gnu arm-linux-gnueabihf; do
 		L=/usr/lib/$a

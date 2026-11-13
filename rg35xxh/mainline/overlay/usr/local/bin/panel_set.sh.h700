@@ -1,8 +1,8 @@
 #!/bin/bash
 # RG35XX-H (mainline sun4i-drm): the panel has no brightness, contrast,
-# saturation or hue properties. Keep the values EmulationStation reads and
-# sets in panel_settings.txt so its menus get numbers; they do not change
-# the picture. Backlight is separate (/sys/class/backlight).
+# saturation or hue properties. Not installed as panel_set.sh, so
+# EmulationStation hides its panel menu entries. Kept as a working stand-in
+# that stores the values in panel_settings.txt.
 F=/home/ark/.config/panel_settings.txt
 [ -f "$F" ] || printf 'brightness: 50\ncontrast: 50\nsaturation: 50\nhue: 50\n' >"$F"
 
