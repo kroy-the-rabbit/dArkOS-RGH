@@ -35,7 +35,10 @@ pkexec sh rg35xxh/mainline/write-card.sh [work dir]     # card must be /dev/sdd,
 | Path | Change |
 |---|---|
 | `/usr/lib/modules/7.2.0`, `/usr/lib/firmware` | From ROCKNIX `kernel-overlays/base` (rtw88, rtl_bt, panels, regulatory.db) |
-| `libEGL.so.1`, `libGLESv2.so.2`, `libGLESv1_CM.so.1`, `libgbm.so.1` | Point at Mesa (Panfrost) instead of `libMali.so`, aarch64 and armhf |
+| `libEGL.so.1.1.0`, `libGLESv2.so.2.1.0`, `libGLESv1_CM.so.1.2.0`, `libgbm.so.1.0.0` | Real files restored from the installed Debian packages; dArkOS links them to `libMali.so` |
+| `libmali.so.1` | Shim linking Mesa EGL, GLES 2, GLES 1 and gbm (`malishim.c`); blob link kept as `libmali.so.1.rockchip` |
+| `libEGL.so`, `libGLESv2.so`, `libGLESv3.so.3`, `libGLESv1_CM.so`, `libgbm.so`, `libmali.so` | Point at Mesa or the shim |
+| `libSDL2-2.0.so.0` | Debian SDL 2.32.4; dArkOS SDL 2.32.10 (crashes in Mesa EGL init) moved to `/opt/darkos-sdl2` |
 | `/etc/emulationstation/es_input.cfg` | Adds `H700 Gamepad` |
 | `~/.config/retroarch{,32}/autoconfig/udev/H700 Gamepad.cfg` | RetroArch binds |
 | `/etc/fstab` | p2 root, p3 `/roms` |

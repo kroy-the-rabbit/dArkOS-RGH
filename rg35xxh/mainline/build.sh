@@ -76,40 +76,71 @@ mkdir -p ov/usr/lib/modules ov/usr/lib/firmware ov/usr/local/bin ov/etc/emulatio
 cp -a "$KO/modules/$KVER" "ov/usr/lib/modules/$KVER"
 cp -a "$KO/firmware/." ov/usr/lib/firmware/
 install -m 755 adbd ov/usr/local/bin/adbd
-# add the H700 Gamepad entry just before </inputList>
-awk -v f="$R/es_input-h700.xml" '/<\/inputList>/{while ((getline l < f) > 0) print l} {print}' \
-	es_input.cfg >ov/etc/emulationstation/es_input.cfg
-grep -q 'deviceName="H700 Gamepad"' ov/etc/emulationstation/es_input.cfg
+# dArkOS replaces Mesa's EGL, GLES and gbm files with links to the Rockchip
+# Mali blob. Restore the real files from the installed package versions, and
+# replace libmali.so.1 with a shim that pulls in Mesa.
+printf 'run\nmount-ro /dev/sda /\ndownload /var/lib/dpkg/status /w/rootfs-dpkg-status\n' |
+	guestfish --ro --format=raw -a /w/rootfs.ext4
+rm -rf mesa && mkdir -p mesa/debs
+PKGS=$(for a in arm64 armhf; do for p in libegl1 libgles1 libgles2 libgbm1; do
+	v=$(awk -v p="$p" -v a="$a" '/^Package: /{n=$2} /^Architecture: /{r=$2} /^Version: /{if (n==p && r==a) print $2}' rootfs-dpkg-status)
+	[ -n "$v" ] && echo "$p:$a=$v"
+done; done)
+echo "$PKGS" | tr '\n' ' '; echo
+cp "$R/malishim.c" mesa/
+podman run --rm -v "$W":/w:z "$DEB" sh -c "
+	dpkg --add-architecture armhf && apt-get update -qq >/dev/null
+	cd /w/mesa/debs && apt-get download -q $(echo $PKGS) >/dev/null 2>&1
+	for d in /w/mesa/debs/*.deb; do dpkg-deb -x \$d /w/ov; done
+	rm -rf /w/ov/usr/share/doc /w/ov/usr/share/lintian
+	apt-get install -y -qq gcc libc6-dev libegl-dev libgles-dev libgbm-dev >/dev/null 2>&1
+	gcc -shared -fPIC -o /w/ov/usr/lib/aarch64-linux-gnu/libmali.so.1 /w/mesa/malishim.c \
+		-Wl,-soname,libmali.so.1 -Wl,--no-as-needed -lEGL -lGLESv2 -lGLESv1_CM -lgbm
+	chown -R $(id -u):$(id -g) /w/ov /w/mesa"
+podman run --rm --platform linux/arm/v7 -v "$W":/w:z docker.io/arm32v7/debian:trixie sh -c "
+	apt-get update -qq >/dev/null && apt-get install -y -qq gcc libc6-dev libegl-dev libgles-dev libgbm-dev >/dev/null 2>&1
+	gcc -shared -fPIC -o /w/ov/usr/lib/arm-linux-gnueabihf/libmali.so.1 /w/mesa/malishim.c \
+		-Wl,-soname,libmali.so.1 -Wl,--no-as-needed -lEGL -lGLESv2 -lGLESv1_CM -lgbm
+	chown $(id -u):$(id -g) /w/ov/usr/lib/arm-linux-gnueabihf/libmali.so.1"
+[ -s ov/usr/lib/aarch64-linux-gnu/libmali.so.1 ] && [ -s ov/usr/lib/arm-linux-gnueabihf/libmali.so.1 ]
+
 tar -C ov --owner=0 --group=0 --numeric-owner -cf overlay.tar .
-guestfish --format=raw -a /w/rootfs.ext4 <<'EOF'
-run
-mount /dev/sda /
-tar-in /w/overlay.tar /
-chown 1000 1000 /home/ark
-chmod 0700 /home/ark
-chown 1000 1000 /etc/emulationstation/es_input.cfg
-debug sh "chown -R 1000:1000 /sysroot/home/ark/.config/retroarch/autoconfig /sysroot/home/ark/.config/retroarch32/autoconfig"
-# Panfrost through Mesa instead of the Rockchip Mali blob
-ln-sf libEGL.so.1.1.0 /usr/lib/aarch64-linux-gnu/libEGL.so.1
-ln-sf libGLESv2.so.2.1.0 /usr/lib/aarch64-linux-gnu/libGLESv2.so.2
-ln-sf libGLESv1_CM.so.1.2.0 /usr/lib/aarch64-linux-gnu/libGLESv1_CM.so.1
-ln-sf libgbm.so.1.0.0 /usr/lib/aarch64-linux-gnu/libgbm.so.1
-ln-sf libEGL.so.1.1.0 /usr/lib/arm-linux-gnueabihf/libEGL.so.1
-ln-sf libGLESv2.so.2.1.0 /usr/lib/arm-linux-gnueabihf/libGLESv2.so.2
-ln-sf libGLESv1_CM.so.1.2.0 /usr/lib/arm-linux-gnueabihf/libGLESv1_CM.so.1
-ln-sf libgbm.so.1.0.0 /usr/lib/arm-linux-gnueabihf/libgbm.so.1
-EOF
-printf 'run\nmount-ro /dev/sda /\n' >ls.gf
-for a in aarch64-linux-gnu arm-linux-gnueabihf; do
-	for l in libEGL.so.1 libGLESv2.so.2 libGLESv1_CM.so.1 libgbm.so.1; do
-		echo "readlink /usr/lib/$a/$l" >>ls.gf
+{
+	printf 'run\nmount /dev/sda /\n'
+	for a in aarch64-linux-gnu arm-linux-gnueabihf; do
+		L=/usr/lib/$a
+		# keep the blob's links reachable under a new name
+		echo "ln-sf libMali.so $L/libmali.so.1.rockchip"
+		echo "rm-f $L/libmali.so.1"
+		# dArkOS SDL2 2.32.10 is built for the Mali blob; use Debian's
+		echo "mkdir-p /opt/darkos-sdl2/$a"
+		echo "mv $L/libSDL2-2.0.so.0.3200.10 /opt/darkos-sdl2/$a/libSDL2-2.0.so.0.3200.10"
 	done
-	for l in libEGL.so.1.1.0 libGLESv2.so.2.1.0 libGLESv1_CM.so.1.2.0 libgbm.so.1.0.0; do
-		echo "exists /usr/lib/$a/$l" >>ls.gf
+	echo "tar-in /w/overlay.tar /"
+	for a in aarch64-linux-gnu arm-linux-gnueabihf; do
+		L=/usr/lib/$a
+		for l in libEGL.so:libEGL.so.1 libGLESv2.so:libGLESv2.so.2 libGLESv3.so.3:libGLESv2.so.2 \
+			libGLESv1_CM.so:libGLESv1_CM.so.1 libgbm.so:libgbm.so.1 libmali.so:libmali.so.1 \
+			libSDL2-2.0.so.0:libSDL2-2.0.so.0.3200.4 libSDL2.so:libSDL2-2.0.so.0; do
+			echo "ln-sf ${l#*:} $L/${l%%:*}"
+		done
 	done
-done
-guestfish --ro --format=raw -a /w/rootfs.ext4 <ls.gf | tr '\n' ' '; echo
-guestfish --ro --format=raw -a /w/rootfs.ext4 <ls.gf | grep -qx false && { echo "a Mesa library is missing"; exit 1; }
+	echo "chown 1000 1000 /home/ark"
+	echo "chmod 0700 /home/ark"
+	echo "chown 1000 1000 /etc/emulationstation/es_input.cfg"
+	echo 'debug sh "chown -R 1000:1000 /sysroot/home/ark/.config/retroarch/autoconfig /sysroot/home/ark/.config/retroarch32/autoconfig"'
+} >ov.gf
+guestfish --format=raw -a /w/rootfs.ext4 <ov.gf
+{
+	printf 'run\nmount-ro /dev/sda /\n'
+	for a in aarch64-linux-gnu arm-linux-gnueabihf; do
+		for f in libEGL.so.1.1.0 libGLESv2.so.2.1.0 libGLESv1_CM.so.1.2.0 libgbm.so.1.0.0 libmali.so.1 libSDL2-2.0.so.0.3200.4; do
+			echo "is-file /usr/lib/$a/$f"
+		done
+	done
+} >chk.gf
+guestfish --ro --format=raw -a /w/rootfs.ext4 <chk.gf | tr '\n' ' '; echo
+guestfish --ro --format=raw -a /w/rootfs.ext4 <chk.gf | grep -qx false && { echo "a Mesa or SDL library is missing"; exit 1; }
 e2fsck -fn rootfs.ext4 >/dev/null
 
 echo "== boot partition"
