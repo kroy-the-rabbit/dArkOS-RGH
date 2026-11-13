@@ -104,7 +104,12 @@ podman run --rm --platform linux/arm/v7 -v "$W":/w:z docker.io/arm32v7/debian:tr
 	chown $(id -u):$(id -g) /w/ov/usr/lib/arm-linux-gnueabihf/libmali.so.1"
 [ -s ov/usr/lib/aarch64-linux-gnu/libmali.so.1 ] && [ -s ov/usr/lib/arm-linux-gnueabihf/libmali.so.1 ]
 
-tar -C ov --owner=0 --group=0 --numeric-owner -cf overlay.tar .
+# full-screen System Info
+"$R/sysinfo/build.sh" "$W/ov/usr/local/bin/h700-sysinfo"
+
+# files and links only: directory entries would reset existing owners
+(cd ov && find . ! -type d -print0) |
+	tar -C ov --owner=0 --group=0 --numeric-owner --null --no-recursion -T - -cf overlay.tar
 {
 	printf 'run\nmount /dev/sda /\n'
 	for a in aarch64-linux-gnu arm-linux-gnueabihf; do
@@ -118,6 +123,8 @@ tar -C ov --owner=0 --group=0 --numeric-owner -cf overlay.tar .
 	done
 	# no panel colour properties on sun4i-drm: hides the EmulationStation panel menu
 	echo "mv /usr/local/bin/panel_set.sh /usr/local/bin/panel_set.sh.rk3566"
+	echo "mkdir-p /opt/h700"
+	echo 'mv "/opt/system/System Info.sh" "/opt/h700/System Info.console.sh"'
 	echo "tar-in /w/overlay.tar /"
 	for a in aarch64-linux-gnu arm-linux-gnueabihf; do
 		L=/usr/lib/$a

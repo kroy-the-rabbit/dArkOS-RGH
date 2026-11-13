@@ -45,5 +45,6 @@ pkexec sh rg35xxh/mainline/write-card.sh [work dir]     # card must be /dev/sdd,
 | `/usr/local/bin/h700-firstboot.sh`, `firstboot.service` | Fills `/roms`; replaces the RK repartition script |
 | `/usr/local/bin/adbd` | From muOS |
 | `/usr/local/bin/panel_set.sh` | Moved to `panel_set.sh.rk3566`: sun4i-drm has no panel colour properties, so EmulationStation hides that menu. `shutdowntasks.service.d/h700.conf` drops its shutdown save |
+| `/opt/system/System Info.sh` | Runs `h700-sysinfo`, a full-screen SDL2 info page (`sysinfo/`); console report kept as `/opt/h700/System Info.console.sh` |
 
 `H700 Gamepad` button ids match the RG353V `retrogame_joypad`: B 0, A 1, X 2, Y 3, L1 4, R1 5, L2 6, R2 7, Select 8, Start 9, Menu 10, L3 11, R3 12, d-pad 13 to 16.
