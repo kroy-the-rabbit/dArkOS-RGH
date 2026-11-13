@@ -1,0 +1,45 @@
+#!/bin/sh
+# Pre-init for dArkOS on the RG35XX-H (mainline kernel).
+# Starts adbd on the USB gadget, then execs systemd. Log: /var/log/h700-init.log
+PATH=/usr/sbin:/usr/bin:/sbin:/bin
+mount -t proc proc /proc 2>/dev/null
+mount -t sysfs sysfs /sys 2>/dev/null
+mount -t devtmpfs devtmpfs /dev 2>/dev/null
+mount -o remount,rw / 2>/dev/null
+L=/var/log/h700-init.log
+{
+	echo "=== h700-init $(date)"
+	uname -a
+	cat /proc/cmdline
+} >>"$L" 2>&1
+
+G=/sys/kernel/config/usb_gadget/g1
+{
+	mountpoint -q /sys/kernel/config || mount -t configfs none /sys/kernel/config
+	mkdir -p "$G/strings/0x409" "$G/configs/c.1" "$G/functions/ffs.adb"
+	echo 0x1d6b >"$G/idVendor"
+	echo 0x0105 >"$G/idProduct"
+	echo darkos-h700 >"$G/strings/0x409/serialnumber"
+	echo dArkOS >"$G/strings/0x409/manufacturer"
+	echo RG35XX-H >"$G/strings/0x409/product"
+	echo 500 >"$G/configs/c.1/MaxPower"
+	ln -s "$G/functions/ffs.adb" "$G/configs/c.1/ffs.adb"
+	mkdir -p /dev/usb-ffs/adb
+	mount -t functionfs adb /dev/usb-ffs/adb
+	/usr/local/bin/adbd &
+	sleep 1
+	for i in 1 2 3 4 5; do
+		U=$(ls /sys/class/udc 2>/dev/null | head -1)
+		[ -n "$U" ] && break
+		sleep 1
+	done
+	echo "$U" >"$G/UDC"
+	echo "adb gadget: $(cat "$G/UDC")"
+} >>"$L" 2>&1
+
+echo "exec systemd" >>"$L"
+sync
+exec /lib/systemd/systemd "$@"
+echo "systemd exec failed: $?" >>"$L"
+sync
+while :; do sleep 60; done
