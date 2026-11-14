@@ -104,6 +104,42 @@ podman run --rm --platform linux/arm/v7 -v "$W":/w:z docker.io/arm32v7/debian:tr
 	chown $(id -u):$(id -g) /w/ov/usr/lib/arm-linux-gnueabihf/libmali.so.1"
 [ -s ov/usr/lib/aarch64-linux-gnu/libmali.so.1 ] && [ -s ov/usr/lib/arm-linux-gnueabihf/libmali.so.1 ]
 
+# Debian RetroArch: the dArkOS build presents through Rockchip RGA. Ship the
+# binary plus the libraries whose sonames the root does not have.
+rm -rf rad && mkdir -p rad
+for a in arm64:aarch64-linux-gnu:docker.io/arm64v8/debian:trixie:linux/arm64 \
+	armhf:arm-linux-gnueabihf:docker.io/arm32v7/debian:trixie:linux/arm/v7; do
+	A=${a%%:*}; t=${a#*:}; T=${t%%:*}; t=${t#*:}; P=${t##*:}; I=${t%:*}
+	printf 'run\nmount-ro /dev/sda /\nls /usr/lib/%s\n' "$T" |
+		guestfish --ro --format=raw -a /w/rootfs.ext4 >"rad/have-$A.txt"
+	mkdir -p "ov/opt/retroarch-debian/$A/lib"
+	podman run --rm --platform "$P" -v "$W":/w:z "$I" sh -c "
+		apt-get update -qq >/dev/null
+		DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends retroarch >/dev/null 2>&1
+		cp /usr/bin/retroarch /w/ov/opt/retroarch-debian/$A/retroarch
+		ldd /usr/bin/retroarch | awk '/=> \\//{print \$1, \$3}' | while read n p; do
+			grep -qx \"\$n\" /w/rad/have-$A.txt || cp -L \"\$p\" /w/ov/opt/retroarch-debian/$A/lib/
+		done
+		chown -R $(id -u):$(id -g) /w/ov/opt/retroarch-debian"
+	[ -x "ov/opt/retroarch-debian/$A/retroarch" ]
+	echo "retroarch $A: $(ls "ov/opt/retroarch-debian/$A/lib" | wc -l) extra libs"
+done
+
+# RetroArch hotkeys: Menu enables, +Select menu, +Start save state and quit
+for c in retroarch retroarch32; do
+	printf 'run\nmount-ro /dev/sda /\ndownload /home/ark/.config/%s/retroarch.cfg /w/rad/%s.cfg\n' "$c" "$c" |
+		guestfish --ro --format=raw -a /w/rootfs.ext4
+	mkdir -p "ov/home/ark/.config/$c"
+	sed -e 's/^input_enable_hotkey_btn = .*/input_enable_hotkey_btn = "10"/' \
+		-e 's/^input_menu_toggle_btn = .*/input_menu_toggle_btn = "8"/' \
+		-e 's/^input_exit_emulator_btn = .*/input_exit_emulator_btn = "9"/' \
+		-e 's/^quit_press_twice = .*/quit_press_twice = "false"/' \
+		-e 's/^savestate_auto_save = .*/savestate_auto_save = "true"/' \
+		-e 's/^savestate_auto_load = .*/savestate_auto_load = "true"/' \
+		"rad/$c.cfg" >"ov/home/ark/.config/$c/retroarch.cfg"
+	grep -q '^input_enable_hotkey_btn = "10"' "ov/home/ark/.config/$c/retroarch.cfg"
+done
+
 # full-screen System Info
 "$R/sysinfo/build.sh" "$W/ov/usr/local/bin/h700-sysinfo"
 
@@ -125,6 +161,9 @@ podman run --rm --platform linux/arm/v7 -v "$W":/w:z docker.io/arm32v7/debian:tr
 	echo "mv /usr/local/bin/panel_set.sh /usr/local/bin/panel_set.sh.rk3566"
 	echo "mkdir-p /opt/h700"
 	echo 'mv "/opt/system/System Info.sh" "/opt/h700/System Info.console.sh"'
+	# RGA presentation; overlay wrapper runs Debian RetroArch
+	echo "mv /opt/retroarch/bin/retroarch /opt/retroarch/bin/retroarch.darkos"
+	echo "mv /opt/retroarch/bin/retroarch32 /opt/retroarch/bin/retroarch32.darkos"
 	echo "tar-in /w/overlay.tar /"
 	for a in aarch64-linux-gnu arm-linux-gnueabihf; do
 		L=/usr/lib/$a
@@ -136,7 +175,9 @@ podman run --rm --platform linux/arm/v7 -v "$W":/w:z docker.io/arm32v7/debian:tr
 	done
 	echo "chown 1000 1000 /home/ark"
 	# tar-in resets these existing dirs to root
-	for d in .config .config/retroarch .config/retroarch32; do echo "chown 1000 1000 /home/ark/$d"; done
+	for d in .config .config/retroarch .config/retroarch32 .config/retroarch/retroarch.cfg .config/retroarch32/retroarch.cfg; do
+		echo "chown 1000 1000 /home/ark/$d"
+	done
 	echo "chmod 0700 /home/ark"
 	echo "chown 1000 1000 /etc/emulationstation/es_input.cfg"
 	echo 'debug sh "chown -R 1000:1000 /sysroot/home/ark/.config/retroarch/autoconfig /sysroot/home/ark/.config/retroarch32/autoconfig"'
@@ -149,9 +190,12 @@ guestfish --format=raw -a /w/rootfs.ext4 <ov.gf
 			echo "is-file /usr/lib/$a/$f"
 		done
 	done
+	for f in retroarch-debian/arm64/retroarch retroarch-debian/armhf/retroarch retroarch/bin/retroarch.darkos retroarch/bin/retroarch32.darkos; do
+		echo "is-file /opt/$f"
+	done
 } >chk.gf
 guestfish --ro --format=raw -a /w/rootfs.ext4 <chk.gf | tr '\n' ' '; echo
-guestfish --ro --format=raw -a /w/rootfs.ext4 <chk.gf | grep -qx false && { echo "a Mesa or SDL library is missing"; exit 1; }
+guestfish --ro --format=raw -a /w/rootfs.ext4 <chk.gf | grep -qx false && { echo "a Mesa, SDL or RetroArch file is missing"; exit 1; }
 e2fsck -fn rootfs.ext4 >/dev/null
 
 echo "== boot partition"

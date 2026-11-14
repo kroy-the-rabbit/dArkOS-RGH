@@ -1,0 +1,12 @@
+[Unit]
+Description=H700 codec levels (kernel defaults are -42 dB at the speaker)
+After=alsa-restore.service sound.target
+Before=emulationstation.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/amixer -c0 -q sset DAC 63 on
+ExecStart=/usr/bin/amixer -c0 -q sset "Line Out" 24 on
+
+[Install]
+WantedBy=multi-user.target

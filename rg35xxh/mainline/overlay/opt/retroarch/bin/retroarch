@@ -1,0 +1,22 @@
+#!/bin/sh
+# Debian RetroArch with KMS output. The dArkOS build (retroarch.darkos) presents
+# through Rockchip RGA, which the H700 does not have.
+case "$(basename "$0")" in
+retroarch32) A=armhf ;;
+*) A=arm64 ;;
+esac
+D=/opt/retroarch-debian
+# one --appendconfig: merge the caller's with h700.cfg, which goes last and wins
+EXT=$D/h700.cfg
+n=$#
+while [ "$n" -gt 0 ]; do
+	a=$1
+	shift
+	case "$a" in
+	--appendconfig=*) EXT="${a#--appendconfig=}|$EXT" ;;
+	*) set -- "$@" "$a" ;;
+	esac
+	n=$((n - 1))
+done
+export LD_LIBRARY_PATH=$D/$A/lib
+exec "$D/$A/retroarch" --appendconfig="$EXT" "$@"
