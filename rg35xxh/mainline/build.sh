@@ -2,9 +2,10 @@
 # Build a dArkOS card for the Anbernic RG35XX-H (Allwinner H700) on a mainline
 # kernel, without root.
 #
-# Bootloader, kernel, DTBs, modules and firmware come from a ROCKNIX H700 DDR4
-# image (LPDDR4 boards), adbd from a muOS H700 image, userspace from a dArkOS
-# RG353V image. Output in $W: boot-area.img (MBR, u-boot, FAT boot partition)
+# Bootloader and firmware come from a ROCKNIX H700 DDR4 image (LPDDR4 boards);
+# kernel, DTBs and modules from kernel/build-kernel.sh (the same ROCKNIX source
+# with the RG35XX-H boot logo); adbd from a muOS H700 image; userspace from a
+# dArkOS RG353V image. Output in $W: boot-area.img (MBR, u-boot, FAT boot partition)
 # and rootfs.btrfs, written to the card by write-card.sh.
 #
 # usage: rg35xxh/mainline/build.sh <ROCKNIX-H700 DDR4 .img.gz> <muOS H700 .img.gz> <dArkOS RG353V .img> [card sectors]
@@ -31,20 +32,21 @@ guestfish() {
 
 podman image exists "$GF" || podman build -t "$GF" "$R/../guestfs"
 
-echo "== ROCKNIX: u-boot, kernel, DTBs, modules, firmware"
+echo "== ROCKNIX: firmware"
 [ -f rocknix.img ] || zcat "$ROCKNIX" >rocknix.img
 RO=$(sfdisk -d rocknix.img | awk -F'[=,]' '/rocknix.img1/{gsub(/ /,"",$2); print $2}')
 RI="rocknix.img@@$((RO * 512))"
 rm -rf rk && mkdir -p rk
-mcopy -n -i "$RI" ::/KERNEL rk/KERNEL
-mcopy -n -s -i "$RI" ::/device_trees rk/
 [ -f rk-SYSTEM ] || mcopy -n -i "$RI" ::/SYSTEM rk-SYSTEM
 podman run --rm -v "$W":/w:z "$DEB" sh -c "
 	apt-get update -qq >/dev/null && apt-get install -y -qq squashfs-tools >/dev/null 2>&1
 	unsquashfs -q -n -d /w/rk/sq /w/rk-SYSTEM usr/lib/kernel-overlays/base >/dev/null
 	chown -R 0:0 /w/rk"
 KO=rk/sq/usr/lib/kernel-overlays/base/lib
-KVER=$(ls "$KO/modules")
+
+echo "== kernel"
+[ -f kernel/Image ] || "$R/kernel/build-kernel.sh" "$W"
+KVER=$(cat kernel/release)
 
 echo "== muOS: adbd"
 [ -f muos-head.img ] || zcat "$MUOS" | dd bs=1M iflag=fullblock count=8500 status=none of=muos-head.img
@@ -68,7 +70,7 @@ echo "== overlay"
 rm -rf ov && mkdir -p ov && cp -a "$R/overlay/." ov/
 rm -f ov/var/log/journal/.keep
 mkdir -p ov/usr/lib/modules ov/usr/lib/firmware ov/usr/local/bin ov/etc/emulationstation
-cp -a "$KO/modules/$KVER" "ov/usr/lib/modules/$KVER"
+cp -a "kernel/modules/lib/modules/$KVER" "ov/usr/lib/modules/$KVER"
 cp -a "$KO/firmware/." ov/usr/lib/firmware/
 install -m 755 adbd ov/usr/local/bin/adbd
 # add the H700 Gamepad entry just before </inputList>
@@ -209,14 +211,11 @@ printf 'run\nbtrfs-fsck /dev/sda\n' | guestfish --ro --format=raw -a /w/rootfs.b
 echo "== boot partition"
 rm -f boot.img && truncate -s $((BOOT_SECTORS * 512)) boot.img
 mkfs.fat -F 32 -n DARKBOOT boot.img >/dev/null
-mcopy -i boot.img rk/KERNEL ::/KERNEL
-mcopy -i boot.img "rk/device_trees/$DTB" ::/dtb.img
-mcopy -s -i boot.img rk/device_trees ::/
+mcopy -i boot.img kernel/Image ::/KERNEL
+mcopy -i boot.img "kernel/dtbs/$DTB" ::/dtb.img
+mmd -i boot.img ::/device_trees
+mcopy -i boot.img kernel/dtbs/* ::/device_trees/
 mcopy -s -i boot.img "$R/boot/extlinux" ::/
-# ROCKNIX's built-in initramfs has no /root, where the kernel mounts root=;
-# u-boot loads this cpio as a second initramfs to add it.
-mkdir -p rootdir/root && (cd rootdir && echo root | cpio -o -H newc -R 0:0 --quiet) >rootdir.cpio
-mcopy -i boot.img rootdir.cpio ::/rootdir.cpio
 
 echo "== card head"
 rm -f card.img && truncate -s $((SECTORS * 512)) card.img

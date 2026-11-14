@@ -5,7 +5,7 @@ Anbernic RG35XX-H (Allwinner H700, LPDDR4) card with the ROCKNIX mainline boot c
 | Partition | Content |
 |---|---|
 | sector 16 | ROCKNIX u-boot (LPDDR4) |
-| p1 FAT `DARKBOOT`, 256 MiB | ROCKNIX `KERNEL` (Linux 7.2), `dtb.img`, `device_trees/`, `extlinux/` |
+| p1 FAT `DARKBOOT`, 256 MiB | `KERNEL` (ROCKNIX Linux 7.2, RG35XX-H boot logo), `dtb.img`, `device_trees/`, `extlinux/` |
 | p2 btrfs `ROOTFS`, 12 GiB | dArkOS trixie root from the RG353V image, unchanged filesystem, grown to 12 GiB |
 | p3 exFAT `EASYROMS` | ROMs |
 
@@ -16,6 +16,7 @@ MBR disk id `4441524b`; root and fstab use `PARTUUID`.
 ```
 podman build -t localhost/guestfs:44 rg35xxh/guestfs   # first time only
 rg35xxh/mainline/build.sh ROCKNIX-H700.aarch64-20261101-DDR4.img.gz MustardOS_RG35XX-H_2601.1_FUNKY_JACARANDA-bc38efa0.img.gz dArkOS_RG353v_trixie_08282026.img
+rg35xxh/mainline/kernel/build-kernel.sh <work dir>   # run by build.sh if <work dir>/kernel/Image is missing, about 15 min
 pkexec sh rg35xxh/mainline/write-card.sh <work dir> <card device>   # 64 GB card only
 ```
 
@@ -26,15 +27,15 @@ pkexec sh rg35xxh/mainline/write-card.sh <work dir> <card device>   # 64 GB card
 | Step | Detail |
 |---|---|
 | u-boot | extlinux on the bootable FAT partition |
-| Kernel | `rdinit=/nonexistent` skips the built-in ROCKNIX initramfs; `root=PARTUUID=4441524b-02` |
-| `rootdir.cpio` | Second initramfs with an empty `/root`, the mount point for `root=`; missing from the ROCKNIX one |
+| Kernel | No initramfs; `root=PARTUUID=4441524b-02`. Boot logo only, console on serial; `quiet` would hide the logo (fbcon skips it at log level 4 or below) |
 | `/init` | adbd on the USB gadget (serial `darkos-h700`), then systemd. Log: `/var/log/h700-init.log` |
 
 ## Build changes to the dArkOS root
 
 | Path | Change |
 |---|---|
-| `/usr/lib/modules/7.2.0`, `/usr/lib/firmware` | From ROCKNIX `kernel-overlays/base` (rtw88, rtl_bt, panels, regulatory.db) |
+| `/usr/lib/modules/7.2.0` | From `kernel/build-kernel.sh`: ROCKNIX tag 20261101 source, patches, DTS and running config, plus `rocknix-joypad` |
+| `/usr/lib/firmware` | From ROCKNIX `kernel-overlays/base` (rtw88, rtl_bt, panels, regulatory.db) |
 | `libEGL.so.1.1.0`, `libGLESv2.so.2.1.0`, `libGLESv1_CM.so.1.2.0`, `libgbm.so.1.0.0`, `libwayland-egl.so.1` | Real files restored from the installed Debian packages; dArkOS links them to `libMali.so` |
 | `libmali.so.1` | Shim linking Mesa EGL, GLES 2, GLES 1 and gbm (`malishim.c`); blob link kept as `libmali.so.1.rockchip` |
 | `libEGL.so`, `libGLESv2.so`, `libGLESv3.so.3`, `libGLESv1_CM.so`, `libgbm.so`, `libmali.so`, `libwayland-egl.so` | Point at Mesa or the shim |
