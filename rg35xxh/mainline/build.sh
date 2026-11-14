@@ -5,7 +5,7 @@
 # Bootloader, kernel, DTBs, modules and firmware come from a ROCKNIX H700 DDR4
 # image (LPDDR4 boards), adbd from a muOS H700 image, userspace from a dArkOS
 # RG353V image. Output in $W: boot-area.img (MBR, u-boot, FAT boot partition)
-# and rootfs.ext4, written to the card by write-card.sh.
+# and rootfs.btrfs, written to the card by write-card.sh.
 #
 # usage: rg35xxh/mainline/build.sh <ROCKNIX-H700 DDR4 .img.gz> <muOS H700 .img.gz> <dArkOS RG353V .img> [card sectors]
 set -e
@@ -18,7 +18,7 @@ W=${W:-$R/work}
 DTB=${DTB:-sun50i-h700-anbernic-rg35xx-h.dtb}
 BOOT_START=32768
 BOOT_SECTORS=524288    # 256 MiB FAT
-ROOT_SECTORS=25165824  # 12 GiB ext4
+ROOT_SECTORS=25165824  # 12 GiB btrfs
 DISKID=0x4441524b
 GF=localhost/guestfs:44
 DEB=docker.io/arm64v8/debian:trixie
@@ -42,7 +42,7 @@ mcopy -n -s -i "$RI" ::/device_trees rk/
 podman run --rm -v "$W":/w:z "$DEB" sh -c "
 	apt-get update -qq >/dev/null && apt-get install -y -qq squashfs-tools >/dev/null 2>&1
 	unsquashfs -q -n -d /w/rk/sq /w/rk-SYSTEM usr/lib/kernel-overlays/base >/dev/null
-	chown -R $(id -u):$(id -g) /w/rk"
+	chown -R 0:0 /w/rk"
 KO=rk/sq/usr/lib/kernel-overlays/base/lib
 KVER=$(ls "$KO/modules")
 
@@ -51,23 +51,18 @@ echo "== muOS: adbd"
 debugfs -R 'dump /usr/bin/adbd adbd' "muos-head.img?offset=$((319488 * 512))" 2>/dev/null
 [ -s adbd ]
 
-echo "== dArkOS: btrfs root to ext4"
+echo "== dArkOS: btrfs root, grown to 12 GiB"
 OFF=$(sfdisk -d "$DARK" | awk -F'[=,]' '/name="rootfs"/{gsub(/ /,"",$2); print $2}')
 LEN=$(sfdisk -d "$DARK" | awk -F'[=,]' '/name="rootfs"/{gsub(/ /,"",$4); print $4}')
-dd if="$DARK" bs=512 skip="$OFF" count="$LEN" status=none of=darkos-root.btrfs
-rm -f rootfs.ext4 && truncate -s $((ROOT_SECTORS * 512)) rootfs.ext4
-guestfish --format=raw -a /w/darkos-root.btrfs --format=raw -a /w/rootfs.ext4 <<'EOF'
+rm -f rootfs.btrfs
+dd if="$DARK" bs=512 skip="$OFF" count="$LEN" status=none of=rootfs.btrfs
+truncate -s $((ROOT_SECTORS * 512)) rootfs.btrfs
+guestfish --format=raw -a /w/rootfs.btrfs <<'EOF'
 run
-mkfs ext4 /dev/sdb label:ROOTFS
-mount /dev/sdb /
-mkmountpoint /src
-mount-ro /dev/sda /src
-debug sh "cd /sysroot/src && tar --xattrs --acls -cpf - . | (cd /sysroot && tar --xattrs --acls -xpf -)"
-umount /src
-rmmountpoint /src
+mount-options compress=zstd:1 /dev/sda /
+btrfs-filesystem-resize /
 download /etc/emulationstation/es_input.cfg /w/es_input.cfg
 EOF
-tune2fs -O ^orphan_file rootfs.ext4 >/dev/null
 
 echo "== overlay"
 rm -rf ov && mkdir -p ov && cp -a "$R/overlay/." ov/
@@ -80,7 +75,7 @@ install -m 755 adbd ov/usr/local/bin/adbd
 # Mali blob. Restore the real files from the installed package versions, and
 # replace libmali.so.1 with a shim that pulls in Mesa.
 printf 'run\nmount-ro /dev/sda /\ndownload /var/lib/dpkg/status /w/rootfs-dpkg-status\n' |
-	guestfish --ro --format=raw -a /w/rootfs.ext4
+	guestfish --ro --format=raw -a /w/rootfs.btrfs
 rm -rf mesa && mkdir -p mesa/debs
 PKGS=$(for a in arm64 armhf; do for p in libegl1 libgles1 libgles2 libgbm1; do
 	v=$(awk -v p="$p" -v a="$a" '/^Package: /{n=$2} /^Architecture: /{r=$2} /^Version: /{if (n==p && r==a) print $2}' rootfs-dpkg-status)
@@ -96,12 +91,12 @@ podman run --rm -v "$W":/w:z "$DEB" sh -c "
 	apt-get install -y -qq gcc libc6-dev libegl-dev libgles-dev libgbm-dev >/dev/null 2>&1
 	gcc -shared -fPIC -o /w/ov/usr/lib/aarch64-linux-gnu/libmali.so.1 /w/mesa/malishim.c \
 		-Wl,-soname,libmali.so.1 -Wl,--no-as-needed -lEGL -lGLESv2 -lGLESv1_CM -lgbm
-	chown -R $(id -u):$(id -g) /w/ov /w/mesa"
+	chown -R 0:0 /w/ov /w/mesa"
 podman run --rm --platform linux/arm/v7 -v "$W":/w:z docker.io/arm32v7/debian:trixie sh -c "
 	apt-get update -qq >/dev/null && apt-get install -y -qq gcc libc6-dev libegl-dev libgles-dev libgbm-dev >/dev/null 2>&1
 	gcc -shared -fPIC -o /w/ov/usr/lib/arm-linux-gnueabihf/libmali.so.1 /w/mesa/malishim.c \
 		-Wl,-soname,libmali.so.1 -Wl,--no-as-needed -lEGL -lGLESv2 -lGLESv1_CM -lgbm
-	chown $(id -u):$(id -g) /w/ov/usr/lib/arm-linux-gnueabihf/libmali.so.1"
+	chown 0:0 /w/ov/usr/lib/arm-linux-gnueabihf/libmali.so.1"
 [ -s ov/usr/lib/aarch64-linux-gnu/libmali.so.1 ] && [ -s ov/usr/lib/arm-linux-gnueabihf/libmali.so.1 ]
 
 # Debian RetroArch: the dArkOS build presents through Rockchip RGA. Ship the
@@ -111,7 +106,7 @@ for a in arm64:aarch64-linux-gnu:docker.io/arm64v8/debian:trixie:linux/arm64 \
 	armhf:arm-linux-gnueabihf:docker.io/arm32v7/debian:trixie:linux/arm/v7; do
 	A=${a%%:*}; t=${a#*:}; T=${t%%:*}; t=${t#*:}; P=${t##*:}; I=${t%:*}
 	printf 'run\nmount-ro /dev/sda /\nls /usr/lib/%s\n' "$T" |
-		guestfish --ro --format=raw -a /w/rootfs.ext4 >"rad/have-$A.txt"
+		guestfish --ro --format=raw -a /w/rootfs.btrfs >"rad/have-$A.txt"
 	mkdir -p "ov/opt/retroarch-debian/$A/lib"
 	podman run --rm --platform "$P" -v "$W":/w:z "$I" sh -c "
 		apt-get update -qq >/dev/null
@@ -120,7 +115,7 @@ for a in arm64:aarch64-linux-gnu:docker.io/arm64v8/debian:trixie:linux/arm64 \
 		ldd /usr/bin/retroarch | awk '/=> \\//{print \$1, \$3}' | while read n p; do
 			grep -qx \"\$n\" /w/rad/have-$A.txt || cp -L \"\$p\" /w/ov/opt/retroarch-debian/$A/lib/
 		done
-		chown -R $(id -u):$(id -g) /w/ov/opt/retroarch-debian"
+		chown -R 0:0 /w/ov/opt/retroarch-debian"
 	[ -x "ov/opt/retroarch-debian/$A/retroarch" ]
 	echo "retroarch $A: $(ls "ov/opt/retroarch-debian/$A/lib" | wc -l) extra libs"
 done
@@ -128,7 +123,7 @@ done
 # RetroArch hotkeys: Menu enables, +Select menu, +Start save state and quit
 for c in retroarch retroarch32; do
 	printf 'run\nmount-ro /dev/sda /\ndownload /home/ark/.config/%s/retroarch.cfg /w/rad/%s.cfg\n' "$c" "$c" |
-		guestfish --ro --format=raw -a /w/rootfs.ext4
+		guestfish --ro --format=raw -a /w/rootfs.btrfs
 	mkdir -p "ov/home/ark/.config/$c"
 	sed -e 's/^input_enable_hotkey_btn = .*/input_enable_hotkey_btn = "10"/' \
 		-e 's/^input_menu_toggle_btn = .*/input_menu_toggle_btn = "8"/' \
@@ -147,7 +142,7 @@ done
 (cd ov && find . ! -type d -print0) |
 	tar -C ov --owner=0 --group=0 --numeric-owner --null --no-recursion -T - -cf overlay.tar
 {
-	printf 'run\nmount /dev/sda /\n'
+	printf 'run\nmount-options compress=zstd:1 /dev/sda /\n'
 	for a in aarch64-linux-gnu arm-linux-gnueabihf; do
 		L=/usr/lib/$a
 		# keep the blob's links reachable under a new name
@@ -182,7 +177,7 @@ done
 	echo "chown 1000 1000 /etc/emulationstation/es_input.cfg"
 	echo 'debug sh "chown -R 1000:1000 /sysroot/home/ark/.config/retroarch/autoconfig /sysroot/home/ark/.config/retroarch32/autoconfig"'
 } >ov.gf
-guestfish --format=raw -a /w/rootfs.ext4 <ov.gf
+guestfish --format=raw -a /w/rootfs.btrfs <ov.gf
 {
 	printf 'run\nmount-ro /dev/sda /\n'
 	for a in aarch64-linux-gnu arm-linux-gnueabihf; do
@@ -194,9 +189,9 @@ guestfish --format=raw -a /w/rootfs.ext4 <ov.gf
 		echo "is-file /opt/$f"
 	done
 } >chk.gf
-guestfish --ro --format=raw -a /w/rootfs.ext4 <chk.gf | tr '\n' ' '; echo
-guestfish --ro --format=raw -a /w/rootfs.ext4 <chk.gf | grep -qx false && { echo "a Mesa, SDL or RetroArch file is missing"; exit 1; }
-e2fsck -fn rootfs.ext4 >/dev/null
+guestfish --ro --format=raw -a /w/rootfs.btrfs <chk.gf | tr '\n' ' '; echo
+guestfish --ro --format=raw -a /w/rootfs.btrfs <chk.gf | grep -qx false && { echo "a Mesa, SDL or RetroArch file is missing"; exit 1; }
+printf 'run\nbtrfs-fsck /dev/sda\n' | guestfish --ro --format=raw -a /w/rootfs.btrfs >/dev/null
 
 echo "== boot partition"
 rm -f boot.img && truncate -s $((BOOT_SECTORS * 512)) boot.img
@@ -224,4 +219,4 @@ dd if=boot.img of=card.img bs=512 seek=$BOOT_START conv=notrunc status=none
 dd if=card.img bs=512 count=$((BOOT_START + BOOT_SECTORS)) status=none of=boot-area.img
 rm -f card.img
 sfdisk -l boot-area.img 2>/dev/null | tail -4 || true
-echo "built: $W/boot-area.img $W/rootfs.ext4"
+echo "built: $W/boot-area.img $W/rootfs.btrfs"

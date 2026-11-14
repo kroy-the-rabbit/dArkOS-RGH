@@ -6,7 +6,7 @@ Anbernic RG35XX-H (Allwinner H700, LPDDR4) card with the ROCKNIX mainline boot c
 |---|---|
 | sector 16 | ROCKNIX u-boot (LPDDR4) |
 | p1 FAT `DARKBOOT`, 256 MiB | ROCKNIX `KERNEL` (Linux 7.2), `dtb.img`, `device_trees/`, `extlinux/` |
-| p2 ext4, 12 GiB | dArkOS trixie (from the RG353V image) |
+| p2 btrfs `ROOTFS`, 12 GiB | dArkOS trixie root from the RG353V image, unchanged filesystem, grown to 12 GiB |
 | p3 exFAT `EASYROMS` | ROMs |
 
 MBR disk id `4441524b`; root and fstab use `PARTUUID`.
@@ -16,7 +16,7 @@ MBR disk id `4441524b`; root and fstab use `PARTUUID`.
 ```
 podman build -t localhost/guestfs:44 rg35xxh/guestfs   # first time only
 rg35xxh/mainline/build.sh ROCKNIX-H700.aarch64-20261101-DDR4.img.gz MustardOS_RG35XX-H_2601.1_FUNKY_JACARANDA-bc38efa0.img.gz dArkOS_RG353v_trixie_08282026.img
-pkexec sh rg35xxh/mainline/write-card.sh [work dir]     # card must be /dev/sdd, 64 GB
+pkexec sh rg35xxh/mainline/write-card.sh <work dir> <card device>   # 64 GB card only
 ```
 
 `DTB=sun50i-h700-anbernic-rg35xx-h-rev6-panel.dtb` selects the rev6 panel. On a built card, copy it over `dtb.img` on p1.
