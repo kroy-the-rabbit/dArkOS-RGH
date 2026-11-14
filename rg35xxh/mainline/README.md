@@ -47,6 +47,7 @@ pkexec sh rg35xxh/mainline/write-card.sh [work dir]     # card must be /dev/sdd,
 | `/usr/local/bin/panel_set.sh` | Moved to `panel_set.sh.rk3566`: sun4i-drm has no panel colour properties, so EmulationStation hides that menu. `shutdowntasks.service.d/h700.conf` drops its shutdown save |
 | `/opt/retroarch/bin/retroarch{,32}` | Wrapper running Debian RetroArch 1.20 from `/opt/retroarch-debian/{arm64,armhf}` (KMS output) with the libraries the root lacks; dArkOS builds (Rockchip RGA output) kept as `*.darkos` |
 | `~/.config/retroarch{,32}/retroarch.cfg` | Menu is the hotkey: +Select menu, +Start quit; auto save and load state |
+| `/usr/local/bin/brightnessctl` | ogage brightness steps x4: Menu+Up/Down 8%, Menu+Vol 4% |
 | `h700-mixer.service` | `DAC` 63, `Line Out` 24 at boot; kernel defaults are -42 dB at the speaker |
 | `/usr/lib/systemd/system-sleep/h700-usbgadget` | ROCKNIX resume hook: rebinds the USB gadget when musb drops the session |
 | `/opt/system/System Info.sh` | Runs `h700-sysinfo`, a full-screen SDL2 info page (`sysinfo/`); console report kept as `/opt/h700/System Info.console.sh` |

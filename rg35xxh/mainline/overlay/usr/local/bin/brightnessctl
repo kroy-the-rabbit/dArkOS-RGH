@@ -1,0 +1,15 @@
+#!/bin/sh
+# ogage brightness steps x4 (2% and 1% are barely visible on this panel).
+# Ahead of /usr/bin in PATH; other arguments pass through.
+n=$#
+while [ "$n" -gt 0 ]; do
+	a=$1
+	shift
+	case "$a" in
+	+[0-9]*%) v=${a#+}; a="+$((${v%\%} * 4))%" ;;
+	[0-9]*%-) v=${a%\%-}; a="$((v * 4))%-" ;;
+	esac
+	set -- "$@" "$a"
+	n=$((n - 1))
+done
+exec /usr/bin/brightnessctl "$@"
