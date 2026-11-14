@@ -72,12 +72,12 @@ cp -a "$KO/modules/$KVER" "ov/usr/lib/modules/$KVER"
 cp -a "$KO/firmware/." ov/usr/lib/firmware/
 install -m 755 adbd ov/usr/local/bin/adbd
 # dArkOS replaces Mesa's EGL, GLES and gbm files with links to the Rockchip
-# Mali blob. Restore the real files from the installed package versions, and
+# Mali blob (also wayland-egl). Restore the real files from the installed package versions, and
 # replace libmali.so.1 with a shim that pulls in Mesa.
 printf 'run\nmount-ro /dev/sda /\ndownload /var/lib/dpkg/status /w/rootfs-dpkg-status\n' |
 	guestfish --ro --format=raw -a /w/rootfs.btrfs
 rm -rf mesa && mkdir -p mesa/debs
-PKGS=$(for a in arm64 armhf; do for p in libegl1 libgles1 libgles2 libgbm1; do
+PKGS=$(for a in arm64 armhf; do for p in libegl1 libgles1 libgles2 libgbm1 libwayland-egl1; do
 	v=$(awk -v p="$p" -v a="$a" '/^Package: /{n=$2} /^Architecture: /{r=$2} /^Version: /{if (n==p && r==a) print $2}' rootfs-dpkg-status)
 	[ -n "$v" ] && echo "$p:$a=$v"
 done; done)
@@ -164,7 +164,8 @@ done
 		L=/usr/lib/$a
 		for l in libEGL.so:libEGL.so.1 libGLESv2.so:libGLESv2.so.2 libGLESv3.so.3:libGLESv2.so.2 \
 			libGLESv1_CM.so:libGLESv1_CM.so.1 libgbm.so:libgbm.so.1 libmali.so:libmali.so.1 \
-			libSDL2-2.0.so.0:libSDL2-2.0.so.0.3200.4 libSDL2.so:libSDL2-2.0.so.0; do
+			libSDL2-2.0.so.0:libSDL2-2.0.so.0.3200.4 libSDL2.so:libSDL2-2.0.so.0 \
+				libwayland-egl.so:libwayland-egl.so.1; do
 			echo "ln-sf ${l#*:} $L/${l%%:*}"
 		done
 	done
