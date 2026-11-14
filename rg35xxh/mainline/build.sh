@@ -142,6 +142,14 @@ done
 # full-screen System Info
 "$R/sysinfo/build.sh" "$W/ov/usr/local/bin/h700-sysinfo"
 
+# AXP717 power key: long-press power-off and 16 s PMIC reset
+cp "$R/pmic/pwrkey.c" "$W/rad/pwrkey.c"
+podman run --rm -v "$W":/w:z "$DEB" sh -c "
+	apt-get update -qq >/dev/null && apt-get install -y -qq gcc libc6-dev >/dev/null 2>&1
+	gcc -O2 -Wall -o /w/ov/usr/local/bin/h700-pwrkey /w/rad/pwrkey.c
+	chown 0:0 /w/ov/usr/local/bin/h700-pwrkey"
+[ -x ov/usr/local/bin/h700-pwrkey ]
+
 # files and links only: directory entries would reset existing owners
 (cd ov && find . ! -type d -print0) |
 	tar -C ov --owner=0 --group=0 --numeric-owner --null --no-recursion -T - -cf overlay.tar
