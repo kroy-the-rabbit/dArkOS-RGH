@@ -49,6 +49,7 @@ pkexec sh rg35xxh/mainline/write-card.sh <work dir> <card device>   # 64 GB card
 | `~/.config/retroarch{,32}/retroarch.cfg` | Menu is the hotkey: +Select menu, +Start quit; auto save and load state |
 | `/usr/local/bin/brightnessctl` | ogage brightness steps x4: Menu+Up/Down 8%, Menu+Vol 4% |
 | `h700-mixer.service`, `/var/local/asound.state` | `DAC` 63, `Line Out` 24 at boot (kernel defaults are -42 dB at the speaker); H616 state replaces the RG353V one that `spktoggle.sh` restores at boot |
+| `/usr/local/bin/h700-pwrkey`, `h700-pwrkey.service` | AXP717 power key at early boot (`pmic/`): hold 6 s powers off, 16 s resets the PMIC; both ship disabled |
 | `/usr/lib/systemd/system-sleep/h700-usbgadget` | ROCKNIX resume hook: rebinds the USB gadget when musb drops the session |
 | `/opt/system/System Info.sh` | Runs `h700-sysinfo`, a full-screen SDL2 info page (`sysinfo/`); console report kept as `/opt/h700/System Info.console.sh` |
 

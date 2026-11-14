@@ -1,0 +1,12 @@
+[Unit]
+Description=H700 power key: long-press power-off and 16 s PMIC reset (AXP717)
+DefaultDependencies=no
+Before=sysinit.target
+ConditionPathExists=/dev/i2c-0
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/h700-pwrkey
+
+[Install]
+WantedBy=sysinit.target
