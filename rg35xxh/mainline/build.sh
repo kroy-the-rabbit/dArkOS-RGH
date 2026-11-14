@@ -71,6 +71,10 @@ mkdir -p ov/usr/lib/modules ov/usr/lib/firmware ov/usr/local/bin ov/etc/emulatio
 cp -a "$KO/modules/$KVER" "ov/usr/lib/modules/$KVER"
 cp -a "$KO/firmware/." ov/usr/lib/firmware/
 install -m 755 adbd ov/usr/local/bin/adbd
+# add the H700 Gamepad entry just before </inputList>
+awk -v f="$R/es_input-h700.xml" '/<\/inputList>/{while ((getline l < f) > 0) print l} {print}' \
+	es_input.cfg >ov/etc/emulationstation/es_input.cfg
+grep -q 'deviceName="H700 Gamepad"' ov/etc/emulationstation/es_input.cfg
 # dArkOS replaces Mesa's EGL, GLES and gbm files with links to the Rockchip
 # Mali blob (also wayland-egl). Restore the real files from the installed package versions, and
 # replace libmali.so.1 with a shim that pulls in Mesa.
