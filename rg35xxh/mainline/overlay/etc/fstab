@@ -1,3 +1,3 @@
-PARTUUID=4441524b-02 / btrfs defaults,noatime,compress=zstd:1,ssd_spread 0 0
+PARTUUID=4441524b-02 / btrfs defaults,noatime,compress=zstd:1,ssd_spread,nodiscard 0 0
 PARTUUID=4441524b-03 /roms exfat defaults,nofail,umask=000,uid=1000,gid=1000,noatime 0 0
 /roms/tools /opt/system/Tools none nofail,x-systemd.device-timeout=7,bind

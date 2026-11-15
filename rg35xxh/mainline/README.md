@@ -42,7 +42,7 @@ pkexec sh rg35xxh/mainline/write-card.sh <work dir> <card device>   # 64 GB card
 | `libSDL2-2.0.so.0` | Debian SDL 2.32.4; dArkOS SDL 2.32.10 (crashes in Mesa EGL init) moved to `/opt/darkos-sdl2` |
 | `/etc/emulationstation/es_input.cfg` | Adds `H700 Gamepad` |
 | `~/.config/retroarch{,32}/autoconfig/udev/H700 Gamepad.cfg` | RetroArch binds |
-| `/etc/fstab` | p2 root, p3 `/roms` |
+| `/etc/fstab` | p2 root (`nodiscard`: sunxi-mmc erase commands time out), p3 `/roms` |
 | `/usr/local/bin/h700-firstboot.sh`, `firstboot.service` | Fills `/roms`; replaces the RK repartition script |
 | `/usr/local/bin/adbd` | From muOS |
 | `/usr/local/bin/panel_set.sh` | Moved to `panel_set.sh.rk3566`: sun4i-drm has no panel colour properties, so EmulationStation hides that menu. `shutdowntasks.service.d/h700.conf` drops its shutdown save |
